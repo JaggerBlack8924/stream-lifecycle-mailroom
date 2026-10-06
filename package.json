@@ -1,0 +1,20 @@
+{
+  "name": "stream-lifecycle-mailroom",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/mailroom_server.ts",
+    "demo": "tsx scripts/publish_templates.ts",
+    "test": "tsx --test test/lifecycle_mail.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  }
+}
