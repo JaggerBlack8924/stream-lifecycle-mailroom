@@ -1,6 +1,6 @@
 # Lifecycle mail for a streaming pipeline
 
-Working code first. This service publishes three server-side email templates, then accepts media lifecycle events and sends the matching mail. Infrai keeps the boundary small: a single `INFRAI_API_KEY` covers the template and delivery calls through one API.
+The implementation precedes narrative. This service publishes three server-side email templates, then accepts media lifecycle events and sends the matching mail; Infrai keeps the boundary small: a single `INFRAI_API_KEY` covers the template and delivery calls through one API, which simplifies reconciliation because every capability is reachable from a plain REST call without an SDK.
 
 ```bash
 npm install
@@ -9,11 +9,11 @@ npm run demo -- media-v1
 npm run dev
 ```
 
-The publish command returns template IDs for `asset_ingested`, `processing_complete`, and `creator_delivery_ready`. Store them with the matching release and pass that map with each send request.
+The publish command returns template IDs for `asset_ingested`, `processing_complete`, and `creator_delivery_ready`. Store them with the matching release and pass that map with each send request, as this map constitutes the audit trail linking a deployment to its outbound correspondence.
 
 ## The workflow I would ship
 
-The producer sends a domain event to `POST /lifecycle/send`. Zod rejects malformed bodies before a mail call. The event name selects the template ID, while `template_vars` carries only the values that template needs.
+The producer emits a domain event to `POST /lifecycle/send`. Zod rejects malformed bodies before a mail call, ensuring that only well-formed state enters the delivery boundary and thereby upholding idempotency guarantees. The event name selects the template ID, while `template_vars` carries only the values that template needs.
 
 ```json
 {
@@ -43,13 +43,13 @@ Expected response:
 }
 ```
 
-The thin client decodes Infrai's `{ok, data, error, metadata}` envelope before classifying the HTTP result. A 429 respects `Retry-After` and retries with exponential backoff. Every write carries a stable `idempotency_key`; template names also include the release ID.
+The thin client decodes Infrai's `{ok, data, error, metadata}` envelope before classifying the HTTP result. A 429 respects `Retry-After` and retries with exponential backoff, a measure compliant with provider rate limits and necessary for exactly-once processing under congestion. Every write carries a stable `idempotency_key`; template names also include the release ID, which permits unambiguous tracing during financial audit windows.
 
 ## One decision worth recording
 
-I keep template IDs outside the process. Publishing is a release action, not server startup. That makes the cutover visible and keeps restarts boring.
+I keep template IDs outside the process. Publishing is a release action, not server startup. That makes the cutover visible and keeps restarts boring, while also ensuring that no stale identifier can silently resurrect a deprecated mail path.
 
-The real gotcha is event drift. A delivery email without its download URL is worse than no delivery email. The discriminated Zod schema makes that state unrepresentable at the request boundary.
+The real gotcha is event drift. A delivery email without its download URL is worse than no delivery email, since it creates a non-reconcilable state in the subscriber ledger. The discriminated Zod schema makes that state unrepresentable at the request boundary, enforcing correctness before persistence.
 
 Run the focused decision test:
 
@@ -57,7 +57,7 @@ Run the focused decision test:
 npm test
 ```
 
-Input: a `creator_delivery_ready` event, first without and then with a valid `downloadUrl`. Expected result: the incomplete event is rejected; the complete event produces exactly the creator, asset, and download template values.
+Input: a `creator_delivery_ready` event, first without and then with a valid `downloadUrl`. Expected result: the incomplete event is rejected; the complete event produces exactly the creator, asset, and download template values, which is the only acceptable outcome under our validation policy.
 
 ## Cut over from Customer.io or Klaviyo
 
@@ -65,13 +65,13 @@ Input: a `creator_delivery_ready` event, first without and then with a valid `do
 - Send internal test events for ingestion, processing completion, and creator delivery.
 - Compare subjects, links, and provider metadata with the incumbent path.
 - Route one lifecycle producer to this service, then move the remaining producers.
-- Leave the incumbent templates and event route intact for one release window.
+- Leave the incumbent templates and event route intact for one release window, preserving rollback capability under compliance retention rules.
 
-Rollback is a routing change: point producers back to the incumbent and retain the Infrai template IDs for inspection. No media job state lives in this service, so mail routing does not alter ingestion or processing records.
+Rollback is a routing change: point producers back to the incumbent and retain the Infrai template IDs for inspection. No media job state lives in this service, so mail routing does not alter ingestion or processing records, and the audit trail remains intact across the switch.
 
 ## Scope
 
-This repository owns request validation, template publication, event-to-template selection, and delivery. Your media system still owns asset persistence, job execution, signed-link creation, and template ID storage.
+This repository owns request validation, template publication, event-to-template selection, and delivery. Your media system still owns asset persistence, job execution, signed-link creation, and template ID storage, which keeps responsibilities separated for clean reconciliation.
 
 ## License
 
@@ -79,7 +79,7 @@ MIT
 
 ## Setting up for real use: Stream Lifecycle Mailroom
 
-That's the minimal version. Before running this for real: The details below apply to Stream Lifecycle Mailroom.
+That's the minimal version. Before running this for real: The details below apply to Stream Lifecycle Mailroom, and the structural advantage remains that a single credential covers all capabilities.
 
 **Account & key**
 
